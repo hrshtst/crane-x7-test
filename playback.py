@@ -20,14 +20,15 @@ ADDR_MIN_POSITION_LIMIT = 52
 # --- Other Constants ---
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
-PLAYBACK_INTERVAL = 0.1  # seconds
-GOTO_HOME_STEPS = 100
 MAX_RETRIES = 5
 RETRY_DELAY = 0.01  # seconds
-DXL_MINIMUM_POSITION_VALUE = 0  # Refer to the Minimum Position Limit of product eManual
-DXL_MAXIMUM_POSITION_VALUE = (
-    4095  # Refer to the Maximum Position Limit of product eManual
-)
+GOTO_HOME_STEPS = 100
+
+# -- Playback Settings --
+# Increase this factor to make the playback smoother by adding more intermediate points.
+# A factor of 5 turns a 10Hz recording into a 50Hz playback.
+INTERPOLATION_FACTOR = 5
+PLAYBACK_INTERVAL = 0.02  # Corresponds to 50Hz
 
 
 def write_with_retry(
@@ -150,6 +151,19 @@ def main():
         quit()
 
     try:
+        # --- Create Interpolated Trajectory ---
+        interpolated_trajectory = []
+        for i in range(len(trajectory) - 1):
+            start_pos = trajectory[i]
+            end_pos = trajectory[i + 1]
+            for step in range(INTERPOLATION_FACTOR):
+                interp_pos = start_pos + (end_pos - start_pos) * (
+                    step / INTERPOLATION_FACTOR
+                )
+                interpolated_trajectory.append(interp_pos)
+        interpolated_trajectory.append(trajectory[-1])  # Add the final point
+        interpolated_trajectory = np.array(interpolated_trajectory)
+
         # --- Go to Initial Position ---
         current_positions = []
         for joint_id in joint_ids:
@@ -158,7 +172,7 @@ def main():
             )
             current_positions.append(dxl_present_position)
 
-        initial_positions = trajectory[0]
+        initial_positions = interpolated_trajectory[0]
 
         print("Moving to initial position...")
         for step in range(GOTO_HOME_STEPS):
@@ -189,7 +203,7 @@ def main():
 
         # --- Playback Logic ---
         print("\n--- Starting playback ---")
-        for positions in trajectory:
+        for positions in interpolated_trajectory:
             for i, joint_id in enumerate(joint_ids):
                 # Clamp the trajectory data as well, just in case
                 goal_position = int(
