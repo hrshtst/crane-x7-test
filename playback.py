@@ -14,6 +14,8 @@ DEVICENAME = "/dev/ttyUSB0"
 ADDR_TORQUE_ENABLE = 64
 ADDR_GOAL_POSITION = 116
 ADDR_PRESENT_POSITION = 132
+ADDR_MAX_POSITION_LIMIT = 48
+ADDR_MIN_POSITION_LIMIT = 52
 
 # --- Other Constants ---
 TORQUE_ENABLE = 1
@@ -117,7 +119,22 @@ def main():
         portHandler.closePort()
         quit()
 
-    # --- Enable Torque for all joints ---
+    # **FIX**: Read the actual Min/Max position limits from each motor
+    min_limits = {}
+    max_limits = {}
+    print("\nReading position limits from motors...")
+    for joint_id in joint_ids:
+        min_pos, _, _ = packetHandler.read4ByteTxRx(
+            portHandler, joint_id, ADDR_MIN_POSITION_LIMIT
+        )
+        max_pos, _, _ = packetHandler.read4ByteTxRx(
+            portHandler, joint_id, ADDR_MAX_POSITION_LIMIT
+        )
+        min_limits[joint_id] = min_pos
+        max_limits[joint_id] = max_pos
+        print(f"  - ID:{joint_id} Min:{min_pos} Max:{max_pos}")
+    print("Finished reading position limits.\n")
+
     for joint_id in joint_ids:
         write_with_retry(
             packetHandler, portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_ENABLE, 1
@@ -152,12 +169,12 @@ def main():
                 / GOTO_HOME_STEPS
             )
             for i, joint_id in enumerate(joint_ids):
-                # **FIX**: Clamp the goal position to the valid range
+                # **FIX**: Clamp the goal position using the actual limits read from the motor
                 goal_position = int(
                     np.clip(
                         intermediate_positions[i],
-                        DXL_MINIMUM_POSITION_VALUE,
-                        DXL_MAXIMUM_POSITION_VALUE,
+                        min_limits[joint_id],
+                        max_limits[joint_id],
                     )
                 )
                 write_with_retry(
@@ -174,7 +191,10 @@ def main():
         print("\n--- Starting playback ---")
         for positions in trajectory:
             for i, joint_id in enumerate(joint_ids):
-                goal_position = int(positions[i])
+                # Clamp the trajectory data as well, just in case
+                goal_position = int(
+                    np.clip(positions[i], min_limits[joint_id], max_limits[joint_id])
+                )
                 write_with_retry(
                     packetHandler,
                     portHandler,
