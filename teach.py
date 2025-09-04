@@ -22,8 +22,13 @@ ADDR_POSITION_D_GAIN = 80
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
 RECORDING_INTERVAL = 0.1  # seconds
-P_GAIN_TEACH = 100  # Low P-gain for compliant teaching
-P_GAIN_PLAYBACK = 800  # Default P-gain for playback
+
+# -- PID GAINS --
+# A very low P-gain makes the robot compliant and easy to move by hand.
+# This value can be tuned to your preference for more or less resistance.
+P_GAIN_TEACH = 5
+# Default P-gain for the CRANE-X7, used for playback.
+P_GAIN_PLAYBACK = 800
 I_GAIN = 0
 D_GAIN = 0
 
@@ -106,14 +111,13 @@ def main():
         print("\nRecording stopped.")
 
     finally:
-        # --- Disable Torque after recording ---
+        # --- Restore default P-gain and disable Torque ---
         for joint_id in joint_ids:
-            packetHandler.write1ByteTxRx(
-                portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE
-            )
-            # Restore default P-gain
             packetHandler.write2ByteTxRx(
                 portHandler, joint_id, ADDR_POSITION_P_GAIN, P_GAIN_PLAYBACK
+            )
+            packetHandler.write1ByteTxRx(
+                portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE
             )
 
         # --- Save Trajectory ---
