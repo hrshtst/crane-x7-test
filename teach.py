@@ -145,6 +145,22 @@ def main():
         print("\nRecording stopped.")
 
     finally:
+        # --- Set goal position to the final taught position BEFORE restoring P-gain ---
+        if trajectory:
+            final_positions = trajectory[-1]
+            print(f"Setting final goal position to: {final_positions}")
+            for i, joint_id in enumerate(joint_ids):
+                if final_positions[i] != -1:  # Check for valid position
+                    write_with_retry(
+                        packetHandler,
+                        portHandler,
+                        joint_id,
+                        ADDR_GOAL_POSITION,
+                        int(final_positions[i]),
+                        4,
+                    )
+            time.sleep(0.1)  # Give a moment for the command to be processed
+
         # --- Restore default P-gain and disable Torque ---
         for joint_id in joint_ids:
             write_with_retry(
@@ -173,6 +189,7 @@ def main():
 
         # --- Close Port ---
         portHandler.closePort()
+        print("Port closed.")
 
 
 if __name__ == "__main__":
