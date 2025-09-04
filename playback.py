@@ -128,63 +128,74 @@ def main():
         portHandler.closePort()
         quit()
 
-    # --- Go to Initial Position ---
-    current_positions = []
-    for joint_id in joint_ids:
-        dxl_present_position, _, _ = packetHandler.read4ByteTxRx(
-            portHandler, joint_id, ADDR_PRESENT_POSITION
-        )
-        current_positions.append(dxl_present_position)
+    try:
+        # --- Go to Initial Position ---
+        current_positions = []
+        for joint_id in joint_ids:
+            dxl_present_position, _, _ = packetHandler.read4ByteTxRx(
+                portHandler, joint_id, ADDR_PRESENT_POSITION
+            )
+            current_positions.append(dxl_present_position)
 
-    initial_positions = trajectory[0]
+        initial_positions = trajectory[0]
 
-    print("Moving to initial position...")
-    for step in range(GOTO_HOME_STEPS):
-        intermediate_positions = (
-            np.array(current_positions)
-            + (initial_positions - np.array(current_positions))
-            * (step + 1)
-            / GOTO_HOME_STEPS
-        )
-        for i, joint_id in enumerate(joint_ids):
+        print("Moving to initial position...")
+        for step in range(GOTO_HOME_STEPS):
+            intermediate_positions = (
+                np.array(current_positions)
+                + (initial_positions - np.array(current_positions))
+                * (step + 1)
+                / GOTO_HOME_STEPS
+            )
+            for i, joint_id in enumerate(joint_ids):
+                write_with_retry(
+                    packetHandler,
+                    portHandler,
+                    joint_id,
+                    ADDR_GOAL_POSITION,
+                    int(intermediate_positions[i]),
+                    4,
+                )
+            time.sleep(0.02)
+
+        # --- Playback Logic ---
+        print("\n--- Starting playback ---")
+        for positions in trajectory:
+            for i, joint_id in enumerate(joint_ids):
+                goal_position = int(positions[i])
+                write_with_retry(
+                    packetHandler,
+                    portHandler,
+                    joint_id,
+                    ADDR_GOAL_POSITION,
+                    goal_position,
+                    4,
+                )
+
+            print(f"Moving to positions: {positions.astype(int)}")
+            time.sleep(PLAYBACK_INTERVAL)
+
+        print("--- Playback finished ---")
+
+    except KeyboardInterrupt:
+        print("\nPlayback stopped by user.")
+
+    finally:
+        # **FIX**: Clear the port before final commands
+        portHandler.clearPort()
+
+        for joint_id in joint_ids:
             write_with_retry(
                 packetHandler,
                 portHandler,
                 joint_id,
-                ADDR_GOAL_POSITION,
-                int(intermediate_positions[i]),
-                4,
-            )
-        time.sleep(0.02)
-
-    # --- Playback Logic ---
-    print("\n--- Starting playback ---")
-    for positions in trajectory:
-        for i, joint_id in enumerate(joint_ids):
-            goal_position = int(positions[i])
-            write_with_retry(
-                packetHandler,
-                portHandler,
-                joint_id,
-                ADDR_GOAL_POSITION,
-                goal_position,
-                4,
+                ADDR_TORQUE_ENABLE,
+                TORQUE_DISABLE,
+                1,
             )
 
-        print(f"Moving to positions: {positions.astype(int)}")
-        time.sleep(PLAYBACK_INTERVAL)
-
-    print("--- Playback finished ---")
-
-    # --- Disable Torque after playback ---
-    for joint_id in joint_ids:
-        write_with_retry(
-            packetHandler, portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE, 1
-        )
-
-    # --- Close Port ---
-    portHandler.closePort()
-    print("Port closed.")
+        portHandler.closePort()
+        print("Port closed.")
 
 
 if __name__ == "__main__":

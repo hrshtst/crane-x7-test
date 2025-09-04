@@ -165,7 +165,9 @@ def main():
         print("\nRecording stopped.")
 
     finally:
-        # --- Set goal position to the final taught position BEFORE restoring P-gain ---
+        # **FIX**: Clear the port to flush any lingering data from the interrupted read
+        portHandler.clearPort()
+
         if trajectory:
             final_positions = trajectory[-1]
             print(f"Setting final goal position to: {final_positions}")
