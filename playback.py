@@ -58,13 +58,23 @@ def write_with_retry(
 
 
 def get_joint_ids_from_config(config_file):
-    """Parses the YAML config file to get joint IDs."""
+    """Parses the YAML config file to get all joint IDs from arm and hand groups."""
     with open(config_file, "r") as f:
         config = yaml.safe_load(f)
 
     joint_ids = []
-    for joint_name in config["joint_groups"]["arm"]["joints"]:
-        joint_ids.append(config[joint_name]["id"])
+
+    # Combine joints from both 'arm' and 'hand' groups
+    joint_names = (
+        config["joint_groups"]["arm"]["joints"]
+        + config["joint_groups"]["hand"]["joints"]
+    )
+
+    for joint_name in joint_names:
+        if joint_name in config:
+            joint_ids.append(config[joint_name]["id"])
+
+    print(f"Found Joint IDs: {joint_ids}")
     return joint_ids
 
 
@@ -88,8 +98,8 @@ def main():
     # --- Get Joint IDs ---
     try:
         joint_ids = get_joint_ids_from_config("crane-x7.yaml")
-    except FileNotFoundError:
-        print("Error: crane-x7.yaml not found. Please place it in the same directory.")
+    except (FileNotFoundError, KeyError) as e:
+        print(f"Error reading or parsing crane-x7.yaml: {e}")
         portHandler.closePort()
         quit()
 
@@ -121,8 +131,10 @@ def main():
     print("Moving to initial position...")
     for step in range(GOTO_HOME_STEPS):
         intermediate_positions = (
-            current_positions
-            + (initial_positions - current_positions) * (step + 1) / GOTO_HOME_STEPS
+            np.array(current_positions)
+            + (initial_positions - np.array(current_positions))
+            * (step + 1)
+            / GOTO_HOME_STEPS
         )
         for i, joint_id in enumerate(joint_ids):
             write_with_retry(
@@ -162,6 +174,7 @@ def main():
 
     # --- Close Port ---
     portHandler.closePort()
+    print("Port closed.")
 
 
 if __name__ == "__main__":
