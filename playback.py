@@ -27,7 +27,8 @@ RETRY_DELAY = 0.01  # seconds
 def write_with_retry(
     packetHandler, portHandler, joint_id, address, data, data_len_bytes
 ):
-    """Attempts to write data to a motor with a retry mechanism."""
+    """Attempts to write data to a motor with a retry mechanism and detailed error logging."""
+    dxl_comm_result, dxl_error = None, None
     for attempt in range(MAX_RETRIES):
         if data_len_bytes == 1:
             dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(
@@ -49,11 +50,20 @@ def write_with_retry(
             return True
 
         if attempt < MAX_RETRIES - 1:
+            # Print detailed error on failed attempt
+            print(
+                f"Warning: Write failed for ID:{joint_id}, Addr:{address} (Attempt {attempt + 1}/{MAX_RETRIES})"
+            )
+            print(f"  - Comm Result: {packetHandler.getTxRxResult(dxl_comm_result)}")
+            print(f"  - Packet Error: {packetHandler.getRxPacketError(dxl_error)}")
             time.sleep(RETRY_DELAY)
 
+    # Log final failure
     print(
         f"Error: Failed to write to ID:{joint_id}, Addr:{address} after {MAX_RETRIES} attempts."
     )
+    print(f"  - Last Comm Result: {packetHandler.getTxRxResult(dxl_comm_result)}")
+    print(f"  - Last Packet Error: {packetHandler.getRxPacketError(dxl_error)}")
     return False
 
 
