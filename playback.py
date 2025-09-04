@@ -22,6 +22,10 @@ PLAYBACK_INTERVAL = 0.1  # seconds
 GOTO_HOME_STEPS = 100
 MAX_RETRIES = 5
 RETRY_DELAY = 0.01  # seconds
+DXL_MINIMUM_POSITION_VALUE = 0  # Refer to the Minimum Position Limit of product eManual
+DXL_MAXIMUM_POSITION_VALUE = (
+    4095  # Refer to the Maximum Position Limit of product eManual
+)
 
 
 def write_with_retry(
@@ -148,12 +152,20 @@ def main():
                 / GOTO_HOME_STEPS
             )
             for i, joint_id in enumerate(joint_ids):
+                # **FIX**: Clamp the goal position to the valid range
+                goal_position = int(
+                    np.clip(
+                        intermediate_positions[i],
+                        DXL_MINIMUM_POSITION_VALUE,
+                        DXL_MAXIMUM_POSITION_VALUE,
+                    )
+                )
                 write_with_retry(
                     packetHandler,
                     portHandler,
                     joint_id,
                     ADDR_GOAL_POSITION,
-                    int(intermediate_positions[i]),
+                    goal_position,
                     4,
                 )
             time.sleep(0.02)
