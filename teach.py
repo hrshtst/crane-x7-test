@@ -17,11 +17,12 @@ ADDR_POSITION_P_GAIN = 84
 ADDR_POSITION_I_GAIN = 82
 ADDR_POSITION_D_GAIN = 80
 
-
 # --- Other Constants ---
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
 RECORDING_INTERVAL = 0.1  # seconds
+MAX_RETRIES = 5
+RETRY_DELAY = 0.01  # seconds
 
 # -- PID GAINS --
 # A very low P-gain makes the robot compliant and easy to move by hand.
@@ -31,6 +32,39 @@ P_GAIN_TEACH = 5
 P_GAIN_PLAYBACK = 800
 I_GAIN = 0
 D_GAIN = 0
+
+
+def write_with_retry(
+    packetHandler, portHandler, joint_id, address, data, data_len_bytes
+):
+    """Attempts to write data to a motor with a retry mechanism."""
+    for attempt in range(MAX_RETRIES):
+        if data_len_bytes == 1:
+            dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(
+                portHandler, joint_id, address, data
+            )
+        elif data_len_bytes == 2:
+            dxl_comm_result, dxl_error = packetHandler.write2ByteTxRx(
+                portHandler, joint_id, address, data
+            )
+        elif data_len_bytes == 4:
+            dxl_comm_result, dxl_error = packetHandler.write4ByteTxRx(
+                portHandler, joint_id, address, data
+            )
+        else:
+            print(f"Error: Invalid data length {data_len_bytes} bytes.")
+            return False
+
+        if dxl_comm_result == COMM_SUCCESS and dxl_error == 0:
+            return True
+
+        if attempt < MAX_RETRIES - 1:
+            time.sleep(RETRY_DELAY)
+
+    print(
+        f"Error: Failed to write to ID:{joint_id}, Addr:{address} after {MAX_RETRIES} attempts."
+    )
+    return False
 
 
 def get_joint_ids_from_config(config_file):
@@ -71,17 +105,17 @@ def main():
 
     # --- Enable Torque and set low PID gains for compliant teaching ---
     for joint_id in joint_ids:
-        packetHandler.write1ByteTxRx(
-            portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_ENABLE
+        write_with_retry(
+            packetHandler, portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_ENABLE, 1
         )
-        packetHandler.write2ByteTxRx(
-            portHandler, joint_id, ADDR_POSITION_P_GAIN, P_GAIN_TEACH
+        write_with_retry(
+            packetHandler, portHandler, joint_id, ADDR_POSITION_P_GAIN, P_GAIN_TEACH, 2
         )
-        packetHandler.write2ByteTxRx(
-            portHandler, joint_id, ADDR_POSITION_I_GAIN, I_GAIN
+        write_with_retry(
+            packetHandler, portHandler, joint_id, ADDR_POSITION_I_GAIN, I_GAIN, 2
         )
-        packetHandler.write2ByteTxRx(
-            portHandler, joint_id, ADDR_POSITION_D_GAIN, D_GAIN
+        write_with_retry(
+            packetHandler, portHandler, joint_id, ADDR_POSITION_D_GAIN, D_GAIN, 2
         )
 
     print("Torque enabled with low PID gains. You can now move the robot.")
@@ -113,11 +147,21 @@ def main():
     finally:
         # --- Restore default P-gain and disable Torque ---
         for joint_id in joint_ids:
-            packetHandler.write2ByteTxRx(
-                portHandler, joint_id, ADDR_POSITION_P_GAIN, P_GAIN_PLAYBACK
+            write_with_retry(
+                packetHandler,
+                portHandler,
+                joint_id,
+                ADDR_POSITION_P_GAIN,
+                P_GAIN_PLAYBACK,
+                2,
             )
-            packetHandler.write1ByteTxRx(
-                portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE
+            write_with_retry(
+                packetHandler,
+                portHandler,
+                joint_id,
+                ADDR_TORQUE_ENABLE,
+                TORQUE_DISABLE,
+                1,
             )
 
         # --- Save Trajectory ---
