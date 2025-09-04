@@ -1,9 +1,8 @@
-import os
 import time
 
 import numpy as np
 import yaml
-from dynamixel_sdk import COMM_SUCCESS, PacketHandler, PortHandler
+from dynamixel_sdk import PacketHandler, PortHandler
 
 # --- Dynamixel Settings ---
 PROTOCOL_VERSION = 2.0
@@ -19,6 +18,7 @@ ADDR_PRESENT_POSITION = 132
 TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
 PLAYBACK_INTERVAL = 0.1  # seconds
+GOTO_HOME_STEPS = 100
 
 
 def get_joint_ids_from_config(config_file):
@@ -62,10 +62,6 @@ def main():
         dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(
             portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_ENABLE
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            print(f"ID:{joint_id} {packetHandler.getTxRxResult(dxl_comm_result)}")
-        elif dxl_error != 0:
-            print(f"ID:{joint_id} {packetHandler.getRxPacketError(dxl_error)}")
     print("Torque has been enabled for all arm joints.")
 
     # --- Load Trajectory ---
@@ -76,6 +72,31 @@ def main():
         portHandler.closePort()
         quit()
 
+    # --- Go to Initial Position ---
+    current_positions = []
+    for joint_id in joint_ids:
+        dxl_present_position, _, _ = packetHandler.read4ByteTxRx(
+            portHandler, joint_id, ADDR_PRESENT_POSITION
+        )
+        current_positions.append(dxl_present_position)
+
+    initial_positions = trajectory[0]
+
+    print("Moving to initial position...")
+    for step in range(GOTO_HOME_STEPS):
+        intermediate_positions = (
+            current_positions
+            + (initial_positions - current_positions) * (step + 1) / GOTO_HOME_STEPS
+        )
+        for i, joint_id in enumerate(joint_ids):
+            packetHandler.write4ByteTxRx(
+                portHandler,
+                joint_id,
+                ADDR_GOAL_POSITION,
+                int(intermediate_positions[i]),
+            )
+        time.sleep(0.02)
+
     # --- Playback Logic ---
     print("\n--- Starting playback ---")
     for positions in trajectory:
@@ -84,10 +105,6 @@ def main():
             dxl_comm_result, dxl_error = packetHandler.write4ByteTxRx(
                 portHandler, joint_id, ADDR_GOAL_POSITION, goal_position
             )
-            if dxl_comm_result != COMM_SUCCESS:
-                print(f"ID:{joint_id} {packetHandler.getTxRxResult(dxl_comm_result)}")
-            elif dxl_error != 0:
-                print(f"ID:{joint_id} {packetHandler.getRxPacketError(dxl_error)}")
 
         print(f"Moving to positions: {positions.astype(int)}")
         time.sleep(PLAYBACK_INTERVAL)
@@ -96,7 +113,7 @@ def main():
 
     # --- Disable Torque after playback ---
     for joint_id in joint_ids:
-        dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(
+        packetHandler.write1ByteTxRx(
             portHandler, joint_id, ADDR_TORQUE_ENABLE, TORQUE_DISABLE
         )
 
