@@ -201,9 +201,11 @@ def main():
                 )
             time.sleep(0.02)
 
-        # --- Playback Logic ---
+        # --- Playback Logic with Precision Timer ---
         print("\n--- Starting playback ---")
         for positions in interpolated_trajectory:
+            loop_start_time = time.time()
+
             for i, joint_id in enumerate(joint_ids):
                 # Clamp the trajectory data as well, just in case
                 goal_position = int(
@@ -219,7 +221,16 @@ def main():
                 )
 
             print(f"Moving to positions: {positions.astype(int)}")
-            time.sleep(PLAYBACK_INTERVAL)
+
+            # **FIX**: Calculate the exact sleep time needed to maintain the desired frequency
+            loop_end_time = time.time()
+            elapsed_time = loop_end_time - loop_start_time
+            sleep_time = PLAYBACK_INTERVAL - elapsed_time
+
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            else:
+                print("Warning: Loop took longer than playback interval.")
 
         print("--- Playback finished ---")
 
