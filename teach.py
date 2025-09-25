@@ -166,7 +166,9 @@ def main():
 
     finally:
         # **FIX**: Clear the port to flush any lingering data from the interrupted read
+        time.sleep(1)
         portHandler.clearPort()
+        time.sleep(1)
 
         if trajectory:
             final_positions = trajectory[-1]
@@ -183,16 +185,8 @@ def main():
                     )
             time.sleep(0.1)  # Give a moment for the command to be processed
 
-        # --- Restore default P-gain and disable Torque ---
+        # **FIX**: Only disable torque. Do NOT restore P-gains here.
         for joint_id in joint_ids:
-            write_with_retry(
-                packetHandler,
-                portHandler,
-                joint_id,
-                ADDR_POSITION_P_GAIN,
-                P_GAIN_PLAYBACK,
-                2,
-            )
             write_with_retry(
                 packetHandler,
                 portHandler,
