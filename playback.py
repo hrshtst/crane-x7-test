@@ -16,6 +16,9 @@ ADDR_GOAL_POSITION = 116
 ADDR_PRESENT_POSITION = 132
 ADDR_MAX_POSITION_LIMIT = 48
 ADDR_MIN_POSITION_LIMIT = 52
+ADDR_POSITION_P_GAIN = 84
+ADDR_POSITION_I_GAIN = 82
+ADDR_POSITION_D_GAIN = 80
 
 # --- Other Constants ---
 TORQUE_ENABLE = 1
@@ -27,6 +30,9 @@ GOTO_HOME_STEPS = 100
 # -- Playback Settings --
 # Increase this factor to make the playback smoother by adding more intermediate points.
 # A factor of 5 turns a 10Hz recording into a 50Hz playback.
+P_GAIN_PLAYBACK = 800
+I_GAIN_PLAYBACK = 0
+D_GAIN_PLAYBACK = 0
 INTERPOLATION_FACTOR = 5
 PLAYBACK_INTERVAL = 0.02  # Corresponds to 50Hz
 
@@ -120,7 +126,34 @@ def main():
         portHandler.closePort()
         quit()
 
-    # **FIX**: Read the actual Min/Max position limits from each motor
+    # **FIX**: Restore P-gains for playback at the start of this script
+    print("\nRestoring default PID gains for playback...")
+    for joint_id in joint_ids:
+        write_with_retry(
+            packetHandler,
+            portHandler,
+            joint_id,
+            ADDR_POSITION_P_GAIN,
+            P_GAIN_PLAYBACK,
+            2,
+        )
+        write_with_retry(
+            packetHandler,
+            portHandler,
+            joint_id,
+            ADDR_POSITION_I_GAIN,
+            I_GAIN_PLAYBACK,
+            2,
+        )
+        write_with_retry(
+            packetHandler,
+            portHandler,
+            joint_id,
+            ADDR_POSITION_D_GAIN,
+            D_GAIN_PLAYBACK,
+            2,
+        )
+
     min_limits = {}
     max_limits = {}
     print("\nReading position limits from motors...")
