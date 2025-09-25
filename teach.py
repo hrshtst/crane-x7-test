@@ -22,7 +22,7 @@ TORQUE_ENABLE = 1
 TORQUE_DISABLE = 0
 RECORDING_INTERVAL = 0.1  # seconds
 MAX_RETRIES = 5
-RETRY_DELAY = 0.01  # seconds
+RETRY_DELAY = 0.1  # seconds
 
 # -- PID GAINS --
 # A very low P-gain makes the robot compliant and easy to move by hand.
@@ -166,9 +166,8 @@ def main():
 
     finally:
         # **FIX**: Clear the port to flush any lingering data from the interrupted read
-        time.sleep(1)
+        time.sleep(0.5)  # Sleep 0.5 s is required to clear port safely
         portHandler.clearPort()
-        time.sleep(1)
 
         if trajectory:
             final_positions = trajectory[-1]
