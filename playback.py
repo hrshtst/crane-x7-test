@@ -204,7 +204,8 @@ def main():
         # --- Playback Logic with Precision Timer ---
         print("\n--- Starting playback ---")
         for positions in interpolated_trajectory:
-            loop_start_time = time.time()
+            # **FIX**: Use perf_counter for high-resolution monotonic timing
+            loop_start_time = time.perf_counter()
 
             for i, joint_id in enumerate(joint_ids):
                 # Clamp the trajectory data as well, just in case
@@ -223,7 +224,7 @@ def main():
             print(f"Moving to positions: {positions.astype(int)}")
 
             # **FIX**: Calculate the exact sleep time needed to maintain the desired frequency
-            loop_end_time = time.time()
+            loop_end_time = time.perf_counter()
             elapsed_time = loop_end_time - loop_start_time
             sleep_time = PLAYBACK_INTERVAL - elapsed_time
 
@@ -257,3 +258,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Local Variables:
+# jinx-local-words: "Addr Baudrate Dynamixel csv dev env perf py usr yaml"
+# End:
